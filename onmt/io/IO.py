@@ -9,6 +9,7 @@ import torchtext.data
 import torchtext.vocab
 
 from onmt.io.DatasetBase import UNK_WORD, PAD_WORD, BOS_WORD, EOS_WORD
+from onmt.io.MultiModalDataset import MultiModalDataset
 from onmt.io.TextDataset import TextDataset
 from onmt.io.ImageDataset import ImageDataset
 from onmt.io.AudioDataset import AudioDataset
@@ -171,11 +172,22 @@ def collect_feature_vocabs(fields, side):
 
 
 def build_dataset(fields, data_type, src_path, tgt_path, src_dir=None,
+                  second_data_type=None, second_src_path=None,
                   src_seq_length=0, tgt_seq_length=0,
                   src_seq_length_trunc=0, tgt_seq_length_trunc=0,
                   dynamic_dict=True, sample_rate=0,
                   window_size=0, window_stride=0, window=None,
                   normalize_audio=True, use_filter_pred=True):
+
+    use_second_modality = second_data_type is not None
+    if use_second_modality:
+        assert data_type == 'text' # Only implemented for primary input type text
+        # Second data type should not be text. One could simply append his secondary text
+        # to the primary input.
+        assert second_data_type != 'text', 'second_data_type cannot be text.'
+        assert second_src_path is not None and src_dir is not None, \
+            'If second_data_type is set, second_src_path as well as src_dir needs to be present'
+
 
     # Build src/tgt examples iterator from corpus files, also extract
     # number of features.
@@ -184,13 +196,24 @@ def build_dataset(fields, data_type, src_path, tgt_path, src_dir=None,
                                   src_seq_length_trunc, sample_rate,
                                   window_size, window_stride,
                                   window, normalize_audio)
+    if use_second_modality:
+        src2_examples_iter, num_src2_feats = \
+            _make_examples_nfeats_tpl(second_data_type, second_src_path, src_dir,
+                                      src_seq_length_trunc, sample_rate,
+                                      window_size, window_stride,
+                                      window, normalize_audio, side='src2')
 
     # For all data types, the tgt side corpus is in form of text.
     tgt_examples_iter, num_tgt_feats = \
         TextDataset.make_text_examples_nfeats_tpl(
             tgt_path, tgt_seq_length_trunc, "tgt")
 
-    if data_type == 'text':
+    if use_second_modality:
+        dataset = MultiModalDataset(fields, src_examples_iter, src2_examples_iter, second_data_type,
+                                    tgt_examples_iter, num_src_feats, num_src2_feats, num_tgt_feats,
+                                    src_seq_length=src_seq_length, tgt_seq_length=tgt_seq_length,
+                                    use_filter_pred=use_filter_pred)
+    elif data_type == 'text':
         dataset = TextDataset(fields, src_examples_iter, tgt_examples_iter,
                               num_src_feats, num_tgt_feats,
                               src_seq_length=src_seq_length,
@@ -343,7 +366,7 @@ def build_vocab(train_dataset_files, fields, data_type, share_vocab,
 def _make_examples_nfeats_tpl(data_type, src_path, src_dir,
                               src_seq_length_trunc, sample_rate,
                               window_size, window_stride,
-                              window, normalize_audio):
+                              window, normalize_audio, side='src'):
     """
     Process the corpus into (example_dict iterator, num_feats) tuple
     on source side for different 'data_type'.
@@ -352,19 +375,19 @@ def _make_examples_nfeats_tpl(data_type, src_path, src_dir,
     if data_type == 'text':
         src_examples_iter, num_src_feats = \
             TextDataset.make_text_examples_nfeats_tpl(
-                src_path, src_seq_length_trunc, "src")
+                src_path, src_seq_length_trunc, side)
 
     elif data_type == 'img':
         src_examples_iter, num_src_feats = \
             ImageDataset.make_image_examples_nfeats_tpl(
-                src_path, src_dir)
+                src_path, src_dir, side)
 
     elif data_type == 'audio':
         src_examples_iter, num_src_feats = \
             AudioDataset.make_audio_examples_nfeats_tpl(
                 src_path, src_dir, sample_rate,
                 window_size, window_stride, window,
-                normalize_audio)
+                normalize_audio, side)
 
     return src_examples_iter, num_src_feats
 

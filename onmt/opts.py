@@ -146,6 +146,22 @@ def preprocess_opts(parser):
                        is in bytes. Optimal value should be multiples of
                        64 bytes.""")
 
+    # Multi-modal data
+    group = parser.add_argument_group('Multi-modal Data')
+    group.add_argument('-second_data_type', default=None,
+                       help="""Type of the second source input.
+                       If this is not present, multi-modal input is not used.
+                       If you supply this, you also have to supply 
+                       second_train_src, second_valid_src and src_dir (for the images)
+                       Options are [img].""")
+    group.add_argument('-second_train_src', default="",
+                       help="""Path to the second modality training source data 
+                       (listing file names inside of src_dir)""")
+    group.add_argument('-second_valid_src', default="",
+                       help="""Path to the second modality validation source data 
+                       (listing file names inside of src_dir)""")
+
+
     # Dictionary options, for text corpus
 
     group = parser.add_argument_group('Vocab')

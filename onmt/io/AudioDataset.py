@@ -91,7 +91,8 @@ class AudioDataset(ONMTDatasetBase):
     def make_audio_examples_nfeats_tpl(path, audio_dir,
                                        sample_rate, window_size,
                                        window_stride, window,
-                                       normalize_audio, truncate=None):
+                                       normalize_audio, truncate=None,
+                                       side='src'):
         """
         Args:
             path (str): location of a src file containing audio paths.
@@ -108,7 +109,7 @@ class AudioDataset(ONMTDatasetBase):
             (example_dict iterator, num_feats) tuple
         """
         examples_iter = AudioDataset.read_audio_file(
-            path, audio_dir, "src", sample_rate,
+            path, audio_dir, side, sample_rate,
             window_size, window_stride, window,
             normalize_audio, truncate)
         num_feats = 0  # Source side(audio) has no features.

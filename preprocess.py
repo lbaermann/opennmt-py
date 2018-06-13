@@ -123,12 +123,15 @@ def build_save_dataset(corpus_type, fields, opt, logger=None):
     if corpus_type == 'train':
         src_corpus = opt.train_src
         tgt_corpus = opt.train_tgt
+        src2_corpus = opt.second_train_src
     else:
         src_corpus = opt.valid_src
         tgt_corpus = opt.valid_tgt
+        src2_corpus = opt.second_valid_src
 
     # Currently we only do preprocess sharding for corpus: data_type=='text'.
-    if opt.data_type == 'text':
+    # If multi-modal input is used, sharding is also not implemented
+    if opt.data_type == 'text' and not opt.second_data_type:
         return build_save_text_dataset_in_shards(
             src_corpus, tgt_corpus, fields,
             corpus_type, opt)
@@ -140,6 +143,8 @@ def build_save_dataset(corpus_type, fields, opt, logger=None):
     dataset = onmt.io.build_dataset(
         fields, opt.data_type, src_corpus, tgt_corpus,
         src_dir=opt.src_dir,
+        second_data_type=opt.second_data_type,
+        second_src_path=src2_corpus,
         src_seq_length=opt.src_seq_length,
         tgt_seq_length=opt.tgt_seq_length,
         src_seq_length_trunc=opt.src_seq_length_trunc,
