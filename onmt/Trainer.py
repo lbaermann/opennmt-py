@@ -227,7 +227,8 @@ class Trainer(object):
             tgt = onmt.io.make_features(batch, 'tgt')
 
             # F-prop through the model.
-            outputs, attns, _ = self.model(src, tgt, src_lengths)
+            outputs, attns, _ = self._forward_pass(
+                batch, src, src_lengths, tgt, dec_state=None)
 
             # Compute loss.
             batch_stats = self.valid_loss.monolithic_compute_loss(
@@ -308,15 +309,8 @@ class Trainer(object):
                 if self.grad_accum_count == 1:
                     self.model.zero_grad()
 
-                if isinstance(self.model, MultiModalModel):
-                    second_src_list = [batch.dataset.examples[int(i)].src2.unsqueeze(0)
-                                       for i in batch.indices]
-                    src2 = torch.cat(second_src_list, dim=0)
-                    outputs, attns, dec_state = \
-                        self.model(src, src2, tgt, src_lengths, dec_state)
-                else:
-                    outputs, attns, dec_state = \
-                        self.model(src, tgt, src_lengths, dec_state)
+                outputs, attns, dec_state = self._forward_pass(
+                    batch, src, src_lengths, tgt, dec_state=dec_state)
 
                 # 3. Compute loss in shards for memory efficiency.
                 batch_stats = self.train_loss.sharded_compute_loss(
@@ -335,3 +329,16 @@ class Trainer(object):
 
         if self.grad_accum_count > 1:
             self.optim.step()
+
+    def _forward_pass(self, batch, src, src_lengths, tgt, dec_state=None):
+        if isinstance(self.model, MultiModalModel):
+            second_src_list = [batch.dataset.examples[int(i)].src2.unsqueeze(0)
+                               for i in batch.indices]
+            src2 = torch.cat(second_src_list, dim=0)
+            outputs, attns, dec_state = \
+                self.model(src, src2, tgt, src_lengths, dec_state)
+        else:
+            outputs, attns, dec_state = \
+                self.model(src, tgt, src_lengths, dec_state)
+        return outputs, attns, dec_state
+
