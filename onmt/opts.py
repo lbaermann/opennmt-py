@@ -117,6 +117,17 @@ def model_opts(parser):
                        help='Lambda value for coverage.')
 
 
+def img_loading_opts(parser):
+    group = parser.add_argument_group('Image loading')
+    group.add_argument('-img_to_tensor_fn', default=None,
+                       help="""A custom image file to tensor function which will be used
+                       to load images. Its type must be (str -> Tensor).
+                       The function should be given by its full name ("module.submodule.img_to_tensor").
+                       Make sure the corresponding module is in PYTHONPATH! 
+                       If this is not given, a default implementation (PIL + torchvision) 
+                       will be used to read image files to tensors.""")
+
+
 def preprocess_opts(parser):
     # Data options
     group = parser.add_argument_group('Data')

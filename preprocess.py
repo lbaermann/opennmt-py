@@ -32,6 +32,7 @@ def parse_args():
 
     onmt.opts.add_md_help_argument(parser)
     onmt.opts.preprocess_opts(parser)
+    onmt.opts.img_loading_opts(parser)
 
     opt = parser.parse_args()
     torch.manual_seed(opt.seed)
@@ -136,6 +137,11 @@ def build_save_dataset(corpus_type, fields, opt, logger=None):
             src_corpus, tgt_corpus, fields,
             corpus_type, opt)
 
+    if opt.img_to_tensor_fn is None:
+        img_to_tensor_fn = None
+    else:
+        img_to_tensor_fn = onmt.Utils.get_function_by_name(opt.img_to_tensor_fn)
+
     # For data_type == 'img' or 'audio', currently we don't do
     # preprocess sharding. We only build a monolithic dataset.
     # But since the interfaces are uniform, it would be not hard
@@ -153,7 +159,9 @@ def build_save_dataset(corpus_type, fields, opt, logger=None):
         sample_rate=opt.sample_rate,
         window_size=opt.window_size,
         window_stride=opt.window_stride,
-        window=opt.window)
+        window=opt.window,
+        file_to_tensor_fn=img_to_tensor_fn
+    )
 
     # We save fields in vocab.pt seperately, so make it empty.
     dataset.fields = []

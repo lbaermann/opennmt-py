@@ -192,6 +192,7 @@ class ServerModel:
         sys.argv = sys.argv[:1]
         parser = argparse.ArgumentParser()
         onmt.opts.translate_opts(parser)
+        onmt.opts.img_loading_opts(parser)
 
         opt['model'] = os.path.join(self.model_root, opt['model'])
         opt['src'] = "dummy_src"

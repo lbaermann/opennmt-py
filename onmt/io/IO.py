@@ -177,7 +177,8 @@ def build_dataset(fields, data_type, src_path, tgt_path, src_dir=None,
                   src_seq_length_trunc=0, tgt_seq_length_trunc=0,
                   dynamic_dict=True, sample_rate=0,
                   window_size=0, window_stride=0, window=None,
-                  normalize_audio=True, use_filter_pred=True):
+                  normalize_audio=True, use_filter_pred=True,
+                  file_to_tensor_fn=None):
 
     use_second_modality = second_data_type is not None
     if use_second_modality:
@@ -195,13 +196,15 @@ def build_dataset(fields, data_type, src_path, tgt_path, src_dir=None,
         _make_examples_nfeats_tpl(data_type, src_path, src_dir,
                                   src_seq_length_trunc, sample_rate,
                                   window_size, window_stride,
-                                  window, normalize_audio)
+                                  window, normalize_audio,
+                                  file_to_tensor_fn=file_to_tensor_fn)
     if use_second_modality:
         src2_examples_iter, num_src2_feats = \
             _make_examples_nfeats_tpl(second_data_type, second_src_path, src_dir,
                                       src_seq_length_trunc, sample_rate,
                                       window_size, window_stride,
-                                      window, normalize_audio, side='src2')
+                                      window, normalize_audio, side='src2',
+                                      file_to_tensor_fn=file_to_tensor_fn)
 
     # For all data types, the tgt side corpus is in form of text.
     tgt_examples_iter, num_tgt_feats = \
@@ -366,7 +369,8 @@ def build_vocab(train_dataset_files, fields, data_type, share_vocab,
 def _make_examples_nfeats_tpl(data_type, src_path, src_dir,
                               src_seq_length_trunc, sample_rate,
                               window_size, window_stride,
-                              window, normalize_audio, side='src'):
+                              window, normalize_audio, side='src',
+                              file_to_tensor_fn=None):
     """
     Process the corpus into (example_dict iterator, num_feats) tuple
     on source side for different 'data_type'.
@@ -380,7 +384,7 @@ def _make_examples_nfeats_tpl(data_type, src_path, src_dir,
     elif data_type == 'img':
         src_examples_iter, num_src_feats = \
             ImageDataset.make_image_examples_nfeats_tpl(
-                src_path, src_dir, side)
+                src_path, src_dir, side, file_to_tensor_fn=file_to_tensor_fn)
 
     elif data_type == 'audio':
         src_examples_iter, num_src_feats = \

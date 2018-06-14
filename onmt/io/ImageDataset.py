@@ -74,28 +74,33 @@ class ImageDataset(ONMTDatasetBase):
         return (ex.src.size(2), ex.src.size(1))
 
     @staticmethod
-    def make_image_examples_nfeats_tpl(path, img_dir, side='src'):
+    def make_image_examples_nfeats_tpl(path, img_dir, side='src',file_to_tensor_fn=None):
         """
         Args:
             path (str): location of a src file containing image paths
             src_dir (str): location of source images
+            file_to_tensor_fn (str -> Tensor): See read_img_file.
 
         Returns:
             (example_dict iterator, num_feats) tuple
         """
-        examples_iter = ImageDataset.read_img_file(path, img_dir, side)
+        examples_iter = ImageDataset.read_img_file(path, img_dir, side,
+                                                   file_to_tensor_fn=file_to_tensor_fn)
         num_feats = 0  # Source side(img) has no features.
 
         return (examples_iter, num_feats)
 
     @staticmethod
-    def read_img_file(path, src_dir, side, truncate=None):
+    def read_img_file(path, src_dir, side, truncate=None, file_to_tensor_fn=None):
         """
         Args:
             path (str): location of a src file containing image paths
             src_dir (str): location of source images
             side (str): 'src' or 'tgt'
             truncate: maximum img size ((0,0) or None for unlimited)
+            file_to_tensor_fn (str -> Tensor): A custom function which receives an image path
+                and is responsible for loading and converting the image to a Tensor. If this is not
+                given, a standard implementation (PIL + torchvision) is used.
 
         Yields:
             a dictionary containing image data, path and index for each line.
@@ -117,7 +122,10 @@ class ImageDataset(ONMTDatasetBase):
                 assert os.path.exists(img_path), \
                     'img path %s not found' % (line.strip())
 
-                img = transforms.ToTensor()(Image.open(img_path))
+                if file_to_tensor_fn is None:
+                    img = transforms.ToTensor()(Image.open(img_path))
+                else:
+                    img = file_to_tensor_fn(img_path)
                 if truncate and truncate != (0, 0):
                     if not (img.size(1) <= truncate[0]
                             and img.size(2) <= truncate[1]):

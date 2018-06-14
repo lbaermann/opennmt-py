@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+import importlib
 import logging
 
 import torch
@@ -30,6 +30,12 @@ def sequence_mask(lengths, max_len=None):
 def use_gpu(opt):
     return (hasattr(opt, 'gpuid') and len(opt.gpuid) > 0) or \
         (hasattr(opt, 'gpu') and opt.gpu > -1)
+
+
+def get_function_by_name(fn_string):
+    mod_name, func_name = fn_string.rsplit('.', 1)
+    mod = importlib.import_module(mod_name)
+    return getattr(mod, func_name)
 
 
 def get_logger(log_file=None):

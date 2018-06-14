@@ -10,6 +10,7 @@ import onmt.ModelConstructor
 import onmt.translate.Beam
 import onmt.io
 import onmt.opts
+import onmt.Utils
 
 
 def make_translator(opt, report_score=True, logger=None, out_file=None):
@@ -37,9 +38,15 @@ def make_translator(opt, report_score=True, logger=None, out_file=None):
                         "ignore_when_blocking", "dump_beam",
                         "data_type", "replace_unk", "gpu", "verbose"]}
 
+    if opt.img_to_tensor_fn is None:
+        img_to_tensor_fn = None
+    else:
+        img_to_tensor_fn = onmt.Utils.get_function_by_name(opt.img_to_tensor_fn)
+
     translator = Translator(model, fields, global_scorer=scorer,
                             out_file=out_file, report_score=report_score,
                             copy_attn=model_opt.copy_attn, logger=logger,
+                            img_to_tensor_fn=img_to_tensor_fn,
                             **kwargs)
     return translator
 
@@ -90,7 +97,8 @@ class Translator(object):
                  report_bleu=False,
                  report_rouge=False,
                  verbose=False,
-                 out_file=None):
+                 out_file=None,
+                 img_to_tensor_fn=None):
         self.logger = logger
         self.gpu = gpu
         self.cuda = gpu > -1
@@ -119,6 +127,7 @@ class Translator(object):
         self.report_score = report_score
         self.report_bleu = report_bleu
         self.report_rouge = report_rouge
+        self.img_to_tensor_fn = img_to_tensor_fn
 
         # for debugging
         self.beam_trace = self.dump_beam != ""
@@ -141,7 +150,8 @@ class Translator(object):
                                      window_size=self.window_size,
                                      window_stride=self.window_stride,
                                      window=self.window,
-                                     use_filter_pred=self.use_filter_pred)
+                                     use_filter_pred=self.use_filter_pred,
+                                     file_to_tensor_fn=self.img_to_tensor_fn)
 
         data_iter = onmt.io.OrderedIterator(
             dataset=data, device=self.gpu,
