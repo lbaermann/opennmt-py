@@ -17,6 +17,7 @@ import torch.nn as nn
 import onmt
 import onmt.io
 import onmt.modules
+from onmt.modules.MultiModalModel import MultiModalModel
 
 
 class Statistics(object):
@@ -306,8 +307,16 @@ class Trainer(object):
                 # 2. F-prop all but generator.
                 if self.grad_accum_count == 1:
                     self.model.zero_grad()
-                outputs, attns, dec_state = \
-                    self.model(src, tgt, src_lengths, dec_state)
+
+                if isinstance(self.model, MultiModalModel):
+                    second_src_list = [batch.dataset.examples[int(i)].src2.unsqueeze(0)
+                                       for i in batch.indices]
+                    src2 = torch.cat(second_src_list, dim=0)
+                    outputs, attns, dec_state = \
+                        self.model(src, src2, tgt, src_lengths, dec_state)
+                else:
+                    outputs, attns, dec_state = \
+                        self.model(src, tgt, src_lengths, dec_state)
 
                 # 3. Compute loss in shards for memory efficiency.
                 batch_stats = self.train_loss.sharded_compute_loss(
