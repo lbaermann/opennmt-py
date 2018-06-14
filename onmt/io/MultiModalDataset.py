@@ -5,7 +5,7 @@ class MultiModalDataset(ONMTDatasetBase):
 
     def __init__(self, fields, src_examples_iter,
                  src2_examples_iter, second_data_type,
-                 tgt_examples_iter,
+                 tgt_examples_iter,  # TODO support tgt_examples_iter=None
                  num_src_feats=0, num_src2_feats=0, num_tgt_feats=0,
                  src_seq_length=0, tgt_seq_length=0,
                  # TODO support for dynamic dict
@@ -13,6 +13,8 @@ class MultiModalDataset(ONMTDatasetBase):
         self.data_type = 'text'
         self.first_data_type = 'text'
         self.second_data_type = second_data_type
+
+        self.src_vocabs = None
 
         self.n_src_feats = num_src_feats
         self.n_sr2c_feats = num_src2_feats
