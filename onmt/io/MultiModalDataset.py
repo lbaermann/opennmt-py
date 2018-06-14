@@ -10,7 +10,7 @@ class MultiModalDataset(ONMTDatasetBase):
                  src_seq_length=0, tgt_seq_length=0,
                  # TODO support for dynamic dict
                  use_filter_pred=True):
-        self.data_type = 'multi'
+        self.data_type = 'text'
         self.first_data_type = 'text'
         self.second_data_type = second_data_type
 
