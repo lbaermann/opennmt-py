@@ -11,6 +11,7 @@ import onmt.translate.Beam
 import onmt.io
 import onmt.opts
 import onmt.Utils
+from onmt.modules.MultiModalModel import MultiModalModel
 
 
 def make_translator(opt, report_score=True, logger=None, out_file=None):
@@ -35,8 +36,8 @@ def make_translator(opt, report_score=True, logger=None, out_file=None):
     kwargs = {k: getattr(opt, k)
               for k in ["beam_size", "n_best", "max_length", "min_length",
                         "stepwise_penalty", "block_ngram_repeat",
-                        "ignore_when_blocking", "dump_beam",
-                        "data_type", "replace_unk", "gpu", "verbose"]}
+                        "ignore_when_blocking", "dump_beam", "data_type",
+                        "second_data_type", "replace_unk", "gpu", "verbose"]}
 
     if opt.img_to_tensor_fn is None:
         img_to_tensor_fn = None
@@ -92,6 +93,7 @@ class Translator(object):
                  window='hamming',
                  use_filter_pred=False,
                  data_type="text",
+                 second_data_type=None,
                  replace_unk=False,
                  report_score=True,
                  report_bleu=False,
@@ -122,6 +124,7 @@ class Translator(object):
         self.use_filter_pred = use_filter_pred
         self.replace_unk = replace_unk
         self.data_type = data_type
+        self.second_data_type = second_data_type
         self.verbose = verbose
         self.out_file = out_file
         self.report_score = report_score
@@ -140,12 +143,15 @@ class Translator(object):
                 "log_probs": []}
 
     def translate(self, src_dir, src_path, tgt_path,
-                  batch_size, attn_debug=False):
+                  batch_size, attn_debug=False,
+                  second_src_path=None):
         data = onmt.io.build_dataset(self.fields,
                                      self.data_type,
                                      src_path,
                                      tgt_path,
                                      src_dir=src_dir,
+                                     second_data_type=self.second_data_type,
+                                     second_src_path=second_src_path,
                                      sample_rate=self.sample_rate,
                                      window_size=self.window_size,
                                      window_stride=self.window_stride,
@@ -301,9 +307,7 @@ class Translator(object):
         if data_type == 'text':
             _, src_lengths = batch.src
 
-        enc_states, memory_bank = self.model.encoder(src, src_lengths)
-        dec_states = self.model.decoder.init_decoder_state(
-            src, memory_bank, enc_states)
+        _, memory_bank, dec_states = self.run_encoder(batch, src, src_lengths)
 
         if src_lengths is None:
             src_lengths = torch.Tensor(batch_size).type_as(memory_bank.data)\
@@ -374,6 +378,18 @@ class Translator(object):
         ret["batch"] = batch
         return ret
 
+    def run_encoder(self, batch, src, src_lengths):
+        if isinstance(self.model, MultiModalModel):
+            second_src_list = [batch.dataset.examples[int(i)].src2.unsqueeze(0)
+                               for i in batch.indices]
+            src2 = torch.cat(second_src_list, dim=0)
+            enc_states, memory_bank, dec_states = self.model \
+                .run_encoder_to_decoder_state(src, src2, src_lengths)
+        else:
+            enc_states, memory_bank, dec_states = self.model \
+                .run_encoder_to_decoder_state(src, src_lengths)
+        return enc_states, memory_bank, dec_states
+
     def _from_beam(self, beam):
         ret = {"predictions": [],
                "scores": [],
@@ -401,9 +417,7 @@ class Translator(object):
         tgt_in = onmt.io.make_features(batch, 'tgt')[:-1]
 
         #  (1) run the encoder on the src
-        enc_states, memory_bank = self.model.encoder(src, src_lengths)
-        dec_states = \
-            self.model.decoder.init_decoder_state(src, memory_bank, enc_states)
+        _, memory_bank, dec_states = self.run_encoder(batch, src, src_lengths)
 
         #  (2) if a target is specified, compute the 'goldScore'
         #  (i.e. log likelihood) of the target under the model

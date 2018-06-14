@@ -428,6 +428,17 @@ def translate_opts(parser):
                        help="""Report rouge 1/2/3/L/SU4 score after translation
                        call tools/test_rouge.py on command line""")
 
+    # Multi-modal data
+    group = parser.add_argument_group('Multi-modal Data')
+    group.add_argument('-second_data_type', default=None,
+                       help="""Type of the second source input.
+                       If you supply this, you also have to supply 
+                       second_src and src_dir (for the images)
+                       Options are [img].""")
+    group.add_argument('-second_src', default="",
+                       help="""Path to the second modality training source data 
+                       (listing file names inside of src_dir)""")
+
     # Options most relevant to summarization.
     group.add_argument('-dynamic_dict', action='store_true',
                        help="Create dynamic dictionaries")

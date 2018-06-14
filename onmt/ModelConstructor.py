@@ -14,6 +14,7 @@ from onmt.Models import NMTModel, MeanEncoder, RNNEncoder, \
 from onmt.modules import Embeddings, ImageEncoder, CopyGenerator, \
     TransformerEncoder, TransformerDecoder, \
     CNNEncoder, CNNDecoder, AudioEncoder
+from onmt.modules.MultiModalModel import MultiModalModel
 from onmt.Utils import use_gpu
 from torch.nn.init import xavier_uniform
 
@@ -126,13 +127,14 @@ def load_test_model(opt, dummy_opt):
             model_opt.__dict__[arg] = dummy_opt[arg]
 
     model = make_base_model(model_opt, fields,
-                            use_gpu(opt), checkpoint)
+                            use_gpu(opt), checkpoint,
+                            use_multimodal_model=opt.second_data_type is not None)
     model.eval()
     model.generator.eval()
     return fields, model, model_opt
 
 
-def make_base_model(model_opt, fields, gpu, checkpoint=None):
+def make_base_model(model_opt, fields, gpu, checkpoint=None, use_multimodal_model=False):
     """
     Args:
         model_opt: the option loaded from checkpoint.
@@ -197,6 +199,17 @@ def make_base_model(model_opt, fields, gpu, checkpoint=None):
     else:
         generator = CopyGenerator(model_opt.rnn_size,
                                   fields["tgt"].vocab)
+
+    if use_multimodal_model:
+        second_dim = int(checkpoint['model']['second_encoder.0.bias'].size(0))
+        model = MultiModalModel(
+            encoder=encoder, second_encoder=nn.Sequential(
+                nn.Linear(second_dim * 2, second_dim),
+                nn.Sigmoid()
+            ),
+            second_dim=second_dim,
+            decoder=decoder, generator=None  # Assigned later
+        )
 
     # Load the model states from checkpoint or initialize them.
     if checkpoint is not None:

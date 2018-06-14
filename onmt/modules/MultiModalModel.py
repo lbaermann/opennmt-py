@@ -44,12 +44,21 @@ class MultiModalModel(nn.Module):
 
         tgt = tgt[:-1]  # exclude last target from inputs
 
+        _, memory_bank, enc_state = self.run_encoder_to_decoder_state(src, second_src, lengths)
+
+        decoder_outputs, dec_state, attns = \
+            self.decoder(tgt, memory_bank,
+                         enc_state if dec_state is None
+                         else dec_state,
+                         memory_lengths=lengths)
+        return decoder_outputs, attns, dec_state
+
+    def run_encoder_to_decoder_state(self, src, second_src, lengths):
         enc_final, memory_bank = self.encoder(src, lengths)
         # enc_final is (layers*directions) x batch x dim.
         # Throw in the second modality for each batch sample
         # => (layers*directions) x batch x (dim + secondDim)
 
-        batch_size = enc_final[0].size(1)
         second_modality = self.second_encoder(second_src)
 
         decoder_input = [None, None]
@@ -61,11 +70,6 @@ class MultiModalModel(nn.Module):
             decoder_input[i] = self.merge_layer(concatenated)
         decoder_input = tuple(decoder_input)
 
-        enc_state = \
+        dec_state = \
             self.decoder.init_decoder_state(src, memory_bank, decoder_input)
-        decoder_outputs, dec_state, attns = \
-            self.decoder(tgt, memory_bank,
-                         enc_state if dec_state is None
-                         else dec_state,
-                         memory_lengths=lengths)
-        return decoder_outputs, attns, dec_state
+        return enc_final, memory_bank, dec_state
