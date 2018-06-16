@@ -9,12 +9,12 @@ import onmt
 import onmt.io
 import onmt.Models
 import onmt.modules
+import onmt.modules.MultiModalModel
 from onmt.Models import NMTModel, MeanEncoder, RNNEncoder, \
     StdRNNDecoder, InputFeedRNNDecoder
 from onmt.modules import Embeddings, ImageEncoder, CopyGenerator, \
     TransformerEncoder, TransformerDecoder, \
     CNNEncoder, CNNDecoder, AudioEncoder
-from onmt.modules.MultiModalModel import MultiModalModel
 from onmt.Utils import use_gpu
 from torch.nn.init import xavier_uniform
 
@@ -202,7 +202,7 @@ def make_base_model(model_opt, fields, gpu, checkpoint=None, use_multimodal_mode
 
     if use_multimodal_model:
         second_dim = int(checkpoint['model']['second_encoder.0.bias'].size(0))
-        model = MultiModalModel(
+        model = onmt.modules.MultiModalModel.HiddenStateMergeLayerMMM(
             encoder=encoder, second_encoder=nn.Sequential(
                 nn.Linear(second_dim * 2, second_dim),
                 nn.Sigmoid()

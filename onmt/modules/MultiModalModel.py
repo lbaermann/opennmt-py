@@ -26,16 +26,10 @@ class MultiModalModel(nn.Module):
         self.second_encoder = second_encoder
         self.second_dim = second_dim
 
-        directions = 2 if self.decoder.bidirectional_encoder else 1
-        enc_output_size = self.encoder.rnn.hidden_size * directions
-        self.enc_pad_layer = nn.ConstantPad1d((0, self.second_dim), 0)
-        self.second_pad_layer = nn.ConstantPad1d((enc_output_size, 0), 0)
-        self.merge_layer = nn.Linear(enc_output_size + self.second_dim,
-                                     self.decoder.hidden_size, bias=True)
-
     def forward(self, src, second_src, tgt, lengths, dec_state=None):
         """
-        Forward.
+        Run a forward pass on the MultiModalModel. This takes the same arguments as NMTModel,
+        but additionally requires a second_src tensor as expected by this MMM's second_encoder.
 
         :param src: the src text tensor as expected by encoder
         :param second_src: the second src tensor as expected by the second_encoder
@@ -49,17 +43,42 @@ class MultiModalModel(nn.Module):
 
         _, memory_bank, enc_state = self.run_encoder_to_decoder_state(src, second_src, lengths)
 
-        # tgt 16, 16, 1
-        # memory_bank 21, 16, 500
-        # lengths 16
-        # enc_state ([2, 16, 500], [2, 16, 500])
-
         decoder_outputs, dec_state, attns = \
             self.decoder(tgt, memory_bank,
                          enc_state if dec_state is None
                          else dec_state,
                          memory_lengths=lengths)
         return decoder_outputs, attns, dec_state
+
+    def run_encoder_to_decoder_state(self, src, second_src, lengths):
+        """
+        Forward the given src and second_src up to the initial decoder state.
+        :param src: the src tensor
+        :param second_src: the second_src tensor
+        :param lengths: the src lengths
+        :return: (enc_final, memory_bank, dec_state) triple, containing the final encoder state,
+        the final encoder memory bank and the initial state to use for the decoder.
+        """
+        raise NotImplementedError
+
+
+class HiddenStateMergeLayerMMM(MultiModalModel):
+    """
+    Implementation of MultiModalModel merging the primary and secondary sources at their
+    hidden representations between the encoder and decoder.
+    Therefore, this model uses linear layer which gets the final encoder state and the
+    second_encoder output and generates the initial decoder state to use.
+    """
+    def __init__(self, encoder: EncoderBase, second_encoder: nn.Module,
+                 second_dim: int, decoder: RNNDecoderBase, generator):
+        super().__init__(encoder, second_encoder, second_dim, decoder, generator)
+
+        directions = 2 if self.decoder.bidirectional_encoder else 1
+        enc_output_size = self.encoder.rnn.hidden_size * directions
+        self.enc_pad_layer = nn.ConstantPad1d((0, self.second_dim), 0)
+        self.second_pad_layer = nn.ConstantPad1d((enc_output_size, 0), 0)
+        self.merge_layer = nn.Linear(enc_output_size + self.second_dim,
+                                     self.decoder.hidden_size, bias=True)
 
     def run_encoder_to_decoder_state(self, src, second_src, lengths):
         enc_final, memory_bank = self.encoder(src, lengths)
