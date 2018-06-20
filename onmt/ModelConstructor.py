@@ -204,7 +204,7 @@ def make_base_model(model_opt, fields, gpu, checkpoint=None, use_multimodal_mode
         second_dim = int(checkpoint['model']['second_encoder.0.bias'].size(0))
         model = onmt.modules.MultiModalModel.HiddenStateMergeLayerMMM(
             encoder=encoder, second_encoder=nn.Sequential(
-                nn.Linear(second_dim * 2, second_dim),
+                nn.Linear(second_dim, second_dim),
                 nn.Sigmoid()
             ),
             second_dim=second_dim,
