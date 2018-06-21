@@ -74,8 +74,8 @@ class Statistics(object):
                 self.accuracy(),
                 self.ppl(),
                 self.xent(),
-                self.n_src_words / (t + 1e-5),
-                self.n_words / (t + 1e-5),
+                float(self.n_src_words) / (t + 1e-5),
+                float(self.n_words) / (t + 1e-5),
                 time.time() - start))
         return msg
 
