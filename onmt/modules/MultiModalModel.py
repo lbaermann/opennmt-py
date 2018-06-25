@@ -120,3 +120,34 @@ class HiddenStateMergeLayerMMM(MultiModalModel):
             h_in_order = [x[i] for i in range(h_even.size(0)) for x in (h_even, h_odd)]
             h = torch.cat([x.unsqueeze(0) for x in h_in_order], dim=0)
         return h
+
+
+class FirstViewThenListenMMM(MultiModalModel):
+    """
+    Implementation of MultiModalModel using the (encoded) second modality as initial
+    cell state for the RNNEncoder. Thereby, the second_encoder returns a Tensor of size
+    [batch, second_dim] while the rnn needs a [num_layers * num_directions, batch, hidden_size]
+    cell state, so a linear layer changing the last dimension from second_dim to hidden_size is used
+    while the first dimension of size (num_layers * num_directions) is simply expanded.
+    """
+
+    def __init__(self, encoder: EncoderBase, second_encoder: nn.Module,
+                 second_dim: int, decoder: RNNDecoderBase, generator):
+        super().__init__(encoder, second_encoder, second_dim, decoder, generator)
+
+        self.convert_to_enc_init_layer = nn.Linear(second_dim, self.encoder.rnn.hidden_size)
+
+    def run_encoder_to_decoder_state(self, src, second_src, lengths):
+        second_encoded = self.second_encoder(second_src)  # [batch x second_dim]
+        converted: torch.Tensor = self.convert_to_enc_init_layer(second_encoded)  # [batch x hidden_size]
+        converted = converted.unsqueeze(0)  # [1 x batch x hidden_size]
+        first_dim = self.encoder.rnn.num_layers * (2 if self.encoder.rnn.bidirectional else 1)
+        encoder_init = converted.expand(first_dim, -1, -1)  # [first_dim x batch x hidden_size]
+
+        if isinstance(self.encoder.rnn, nn.LSTM):
+            encoder_init = (encoder_init, encoder_init)  # Use it as initial hidden and cell state
+
+        enc_final, memory_bank = self.encoder(src, lengths, encoder_state=encoder_init)
+        dec_state = \
+            self.decoder.init_decoder_state(src, memory_bank, enc_final)
+        return enc_final, memory_bank, dec_state

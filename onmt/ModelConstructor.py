@@ -201,8 +201,16 @@ def make_base_model(model_opt, fields, gpu, checkpoint=None, use_multimodal_mode
                                   fields["tgt"].vocab)
 
     if use_multimodal_model:
+        # TODO do this based on model_opt here
         second_dim = int(checkpoint['model']['second_encoder.0.bias'].size(0))
-        model = onmt.modules.MultiModalModel.HiddenStateMergeLayerMMM(
+        if 'merge_layer.bias' in checkpoint['model']:
+            mmm_class = onmt.modules.MultiModalModel.HiddenStateMergeLayerMMM
+        elif 'convert_to_enc_init_layer.bias' in checkpoint['model']:
+            mmm_class = onmt.modules.MultiModalModel.FirstViewThenListenMMM
+        else:
+            raise ValueError('No known MultiModalModel class used '
+                             'although use_multimodal_model was true!')
+        model = mmm_class(
             encoder=encoder, second_encoder=nn.Sequential(
                 nn.Linear(second_dim, second_dim),
                 nn.Sigmoid()
