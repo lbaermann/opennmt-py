@@ -127,14 +127,13 @@ def load_test_model(opt, dummy_opt):
             model_opt.__dict__[arg] = dummy_opt[arg]
 
     model = make_base_model(model_opt, fields,
-                            use_gpu(opt), checkpoint,
-                            use_multimodal_model=opt.second_data_type is not None)
+                            use_gpu(opt), checkpoint)
     model.eval()
     model.generator.eval()
     return fields, model, model_opt
 
 
-def make_base_model(model_opt, fields, gpu, checkpoint=None, use_multimodal_model=False):
+def make_base_model(model_opt, fields, gpu, checkpoint=None):
     """
     Args:
         model_opt: the option loaded from checkpoint.
@@ -185,48 +184,39 @@ def make_base_model(model_opt, fields, gpu, checkpoint=None, use_multimodal_mode
 
     decoder = make_decoder(model_opt, tgt_embeddings)
 
-    # Make NMTModel(= encoder + decoder).
-    model = NMTModel(encoder, decoder)
-    model.model_type = model_opt.model_type
-
     # Make Generator.
+    use_multimodal_model = model_opt.multimodal_type is not None
+    if use_multimodal_model and 'gm' in model_opt.multimodal_type:
+        generator_in_size = model_opt.rnn_size + model_opt.second_dim
+    else:
+        generator_in_size = model_opt.rnn_size
     if not model_opt.copy_attn:
-        # TODO do this based on model_opt here
-        if checkpoint is not None:
-            gen_size = int(checkpoint['generator']['0.weight'].size(1))
-        else:
-            gen_size = model_opt.rnn_size
         generator = nn.Sequential(
-            nn.Linear(gen_size, len(fields["tgt"].vocab)),
+            nn.Linear(generator_in_size, len(fields["tgt"].vocab)),
             nn.LogSoftmax(dim=-1))
         if model_opt.share_decoder_embeddings:
             generator[0].weight = decoder.embeddings.word_lut.weight
     else:
-        if checkpoint is not None:
-            gen_size = int(checkpoint['generator']['linear.weight'].size(1))
-        else:
-            gen_size = model_opt.rnn_size
-        generator = CopyGenerator(gen_size,
+        generator = CopyGenerator(generator_in_size,
                                   fields["tgt"].vocab)
 
     if use_multimodal_model:
-        # TODO do this based on model_opt here
-        second_dim = int(checkpoint['model']['second_encoder.0.bias'].size(0))
-        if 'merge_layer.bias' in checkpoint['model']:
-            mmm_class = onmt.modules.MultiModalModel.HiddenStateMergeLayerMMM
-        elif 'convert_to_enc_init_layer.bias' in checkpoint['model']:
-            mmm_class = onmt.modules.MultiModalModel.FirstViewThenListenMMM
-        else:
-            raise ValueError('No known MultiModalModel class used '
-                             'although use_multimodal_model was true!')
+        second_dim_in = model_opt.second_dim_in
+        second_dim = model_opt.second_dim
+        mmm_class = onmt.modules.MultiModalModel.multimodal_model_class_by_key(
+            model_opt.multimodal_type)
         model = mmm_class(
             encoder=encoder, second_encoder=nn.Sequential(
-                nn.Linear(second_dim, second_dim),
+                nn.Linear(second_dim_in, second_dim),
                 nn.Sigmoid()
             ),
             second_dim=second_dim,
             decoder=decoder, generator=None  # Assigned later
         )
+    else:
+        # Make NMTModel(= encoder + decoder).
+        model = NMTModel(encoder, decoder)
+        model.model_type = model_opt.model_type
 
     # Load the model states from checkpoint or initialize them.
     if checkpoint is not None:

@@ -5,6 +5,16 @@ import torch.nn as nn
 from onmt.Models import EncoderBase, RNNDecoderBase, NMTModel
 
 
+def multimodal_model_class_by_key(key):
+    d = {
+        'hsm': HiddenStateMergeLayerMMM,
+        'fvtl': FirstViewThenListenMMM,
+        'gm': GeneratorMergeMMM,
+        'fvtl+gm': FirstViewThenListenFinallyViewMMM
+    }
+    return d[key]
+
+
 class MultiModalModel(nn.Module):
 
     def __init__(self, encoder: EncoderBase, second_encoder: nn.Module,
@@ -165,10 +175,6 @@ class GeneratorMergeMMM(MultiModalModel):
     Note: A fitting generator must be used with this model so that dimensions match!
     """
 
-    def __init__(self, encoder: EncoderBase, second_encoder: nn.Module,
-                 second_dim: int, decoder: RNNDecoderBase, generator):
-        super().__init__(encoder, second_encoder, second_dim, decoder, generator)
-
     def run_encoder_to_decoder_state(self, src, second_src, lengths):
         return NMTModel.run_encoder_to_decoder_state(self, src, lengths)
 
@@ -186,3 +192,22 @@ class GeneratorMergeMMM(MultiModalModel):
         second_expanded = unsqueezed.expand(length, -1, -1)  # [len x batch x rnn_size]
         concat = torch.cat((out, second_expanded), dim=2)
         return concat, state, attn
+
+
+class FirstViewThenListenFinallyViewMMM(FirstViewThenListenMMM, GeneratorMergeMMM):
+    """
+    Combination of FirstViewThenListenMMM and GeneratorMergeMMM.
+    """
+
+    def __init__(self, encoder: EncoderBase, second_encoder: nn.Module, second_dim: int,
+                 decoder: RNNDecoderBase, generator):
+        FirstViewThenListenMMM.__init__(self, encoder, second_encoder,
+                                        second_dim, decoder, generator)
+
+    def run_encoder_to_decoder_state(self, src, second_src, lengths):
+        return FirstViewThenListenMMM.run_encoder_to_decoder_state(
+            self, src, second_src, lengths)
+
+    def run_decoder(self, tgt, memory_bank, dec_init, memory_lengths, second_src):
+        return GeneratorMergeMMM.run_decoder(self, tgt, memory_bank, dec_init,
+                                             memory_lengths, second_src)

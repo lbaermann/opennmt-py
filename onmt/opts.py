@@ -116,6 +116,21 @@ def model_opts(parser):
     group.add_argument('-lambda_coverage', type=float, default=1,
                        help='Lambda value for coverage.')
 
+    group = parser.add_argument_group('Model- Multimodal')
+    group.add_argument('-multimodal_type', type=str, default=None,
+                       choices=[None, 'hsm', 'fvtl', 'gm', 'fvtl+gm'],
+                       help="""The multimodal model implementation to use.
+                       If not specified, no multimodal model is used at all.
+                       hsm      = hidden state merge
+                       fvtl     = first view, then listen
+                       gm       = generator merge
+                       fvtl+gm  = first view, then listen, finally view
+                       """)
+    group.add_argument('-second_dim', type=int, default=None,
+                       help="The output dimension of the second encoder.")
+    group.add_argument('-second_dim_in', type=int, default=None,
+                       help="The input dimension of the second encoder.")
+
 
 def img_loading_opts(parser):
     group = parser.add_argument_group('Image loading')

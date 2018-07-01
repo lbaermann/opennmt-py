@@ -343,7 +343,8 @@ class Translator(object):
 
             # Run one step.
             dec_out, dec_states, attn = self.run_decoder(
-                batch, dec_states, inp, memory_bank, memory_lengths)
+                batch, dec_states, inp, memory_bank, memory_lengths,
+                beam_size=beam_size)
             dec_out = dec_out.squeeze(0)
             # dec_out: beam x rnn_size
 
@@ -390,11 +391,13 @@ class Translator(object):
                 .run_encoder_to_decoder_state(src, src_lengths)
         return enc_states, memory_bank, dec_states
 
-    def run_decoder(self, batch, dec_states, dec_inp, memory_bank, memory_lengths):
-        if isinstance(self.model, MultiModalModel):
+    def run_decoder(self, batch, dec_states, dec_inp, memory_bank, memory_lengths,
+                    beam_size=1):
+        if isinstance(self.model, onmt.modules.MultiModalModel.GeneratorMergeMMM):
             second_src_list = [batch.dataset.examples[int(i)].src2.unsqueeze(0)
                                for i in batch.indices]
             src2 = torch.cat(second_src_list, dim=0)
+            src2 = src2.repeat(beam_size, 1)
             dec_out, dec_states, attn = self.model.run_decoder(
                 dec_inp, memory_bank, dec_states, memory_lengths, src2)
         else:
