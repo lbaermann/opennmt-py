@@ -342,8 +342,8 @@ class Translator(object):
             inp = inp.unsqueeze(2)
 
             # Run one step.
-            dec_out, dec_states, attn = self.model.decoder(
-                inp, memory_bank, dec_states, memory_lengths=memory_lengths)
+            dec_out, dec_states, attn = self.run_decoder(
+                batch, dec_states, inp, memory_bank, memory_lengths)
             dec_out = dec_out.squeeze(0)
             # dec_out: beam x rnn_size
 
@@ -390,6 +390,18 @@ class Translator(object):
                 .run_encoder_to_decoder_state(src, src_lengths)
         return enc_states, memory_bank, dec_states
 
+    def run_decoder(self, batch, dec_states, dec_inp, memory_bank, memory_lengths):
+        if isinstance(self.model, MultiModalModel):
+            second_src_list = [batch.dataset.examples[int(i)].src2.unsqueeze(0)
+                               for i in batch.indices]
+            src2 = torch.cat(second_src_list, dim=0)
+            dec_out, dec_states, attn = self.model.run_decoder(
+                dec_inp, memory_bank, dec_states, memory_lengths, src2)
+        else:
+            dec_out, dec_states, attn = self.model.decoder(
+                dec_inp, memory_bank, dec_states, memory_lengths=memory_lengths)
+        return dec_out, dec_states, attn
+
     def _from_beam(self, beam):
         ret = {"predictions": [],
                "scores": [],
@@ -423,8 +435,8 @@ class Translator(object):
         #  (i.e. log likelihood) of the target under the model
         tt = torch.cuda if self.cuda else torch
         gold_scores = tt.FloatTensor(batch.batch_size).fill_(0)
-        dec_out, _, _ = self.model.decoder(
-            tgt_in, memory_bank, dec_states, memory_lengths=src_lengths)
+        dec_out, _, _ = self.run_decoder(
+            batch, dec_states, tgt_in, memory_bank, src_lengths)
 
         tgt_pad = self.fields["tgt"].vocab.stoi[onmt.io.PAD_WORD]
         for dec, tgt in zip(dec_out, batch.tgt[1:].data):

@@ -191,13 +191,22 @@ def make_base_model(model_opt, fields, gpu, checkpoint=None, use_multimodal_mode
 
     # Make Generator.
     if not model_opt.copy_attn:
+        # TODO do this based on model_opt here
+        if checkpoint is not None:
+            gen_size = int(checkpoint['generator']['0.weight'].size(1))
+        else:
+            gen_size = model_opt.rnn_size
         generator = nn.Sequential(
-            nn.Linear(model_opt.rnn_size, len(fields["tgt"].vocab)),
+            nn.Linear(gen_size, len(fields["tgt"].vocab)),
             nn.LogSoftmax(dim=-1))
         if model_opt.share_decoder_embeddings:
             generator[0].weight = decoder.embeddings.word_lut.weight
     else:
-        generator = CopyGenerator(model_opt.rnn_size,
+        if checkpoint is not None:
+            gen_size = int(checkpoint['generator']['linear.weight'].size(1))
+        else:
+            gen_size = model_opt.rnn_size
+        generator = CopyGenerator(gen_size,
                                   fields["tgt"].vocab)
 
     if use_multimodal_model:

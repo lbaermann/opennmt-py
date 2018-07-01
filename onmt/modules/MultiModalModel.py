@@ -2,7 +2,7 @@ import torch
 
 import torch.nn as nn
 
-from onmt.Models import EncoderBase, RNNDecoderBase
+from onmt.Models import EncoderBase, RNNDecoderBase, NMTModel
 
 
 class MultiModalModel(nn.Module):
@@ -44,10 +44,10 @@ class MultiModalModel(nn.Module):
         _, memory_bank, enc_state = self.run_encoder_to_decoder_state(src, second_src, lengths)
 
         decoder_outputs, dec_state, attns = \
-            self.decoder(tgt, memory_bank,
-                         enc_state if dec_state is None
-                         else dec_state,
-                         memory_lengths=lengths)
+            self.run_decoder(tgt, memory_bank,
+                             enc_state if dec_state is None
+                             else dec_state,
+                             lengths, second_src)
         return decoder_outputs, attns, dec_state
 
     def run_encoder_to_decoder_state(self, src, second_src, lengths):
@@ -60,6 +60,10 @@ class MultiModalModel(nn.Module):
         the final encoder memory bank and the initial state to use for the decoder.
         """
         raise NotImplementedError
+
+    def run_decoder(self, tgt, memory_bank, dec_init, memory_lengths, second_src):
+        return self.decoder(tgt, memory_bank, dec_init,
+                            memory_lengths=memory_lengths)
 
 
 class HiddenStateMergeLayerMMM(MultiModalModel):
@@ -151,3 +155,34 @@ class FirstViewThenListenMMM(MultiModalModel):
         dec_state = \
             self.decoder.init_decoder_state(src, memory_bank, enc_final)
         return enc_final, memory_bank, dec_state
+
+
+class GeneratorMergeMMM(MultiModalModel):
+    """
+    Implementation of MultiModalModel using the (encoded) second modality solely as additional
+    input to the generator. This means, the output of the second encoder is simply concatenated
+    to the output of the decoder.
+    Note: A fitting generator must be used with this model so that dimensions match!
+    """
+
+    def __init__(self, encoder: EncoderBase, second_encoder: nn.Module,
+                 second_dim: int, decoder: RNNDecoderBase, generator):
+        super().__init__(encoder, second_encoder, second_dim, decoder, generator)
+
+    def run_encoder_to_decoder_state(self, src, second_src, lengths):
+        return NMTModel.run_encoder_to_decoder_state(self, src, lengths)
+
+    def run_decoder(self, tgt, memory_bank, dec_init, memory_lengths, second_src):
+        second_encoded: torch.Tensor = self.second_encoder(second_src)
+        out, state, attn = super().run_decoder(tgt, memory_bank, dec_init,
+                                               memory_lengths, second_src)
+
+        # decoder output is [len x batch x rnn_size]
+        # second encoded is [batch x second_dim]
+        # concat it to [len x batch x (rnn_size + second_dim)]
+
+        length = out.size(0)
+        unsqueezed = second_encoded.unsqueeze(0)  # [1 x batch x rnn_size]
+        second_expanded = unsqueezed.expand(length, -1, -1)  # [len x batch x rnn_size]
+        concat = torch.cat((out, second_expanded), dim=2)
+        return concat, state, attn
