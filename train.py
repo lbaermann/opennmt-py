@@ -326,7 +326,7 @@ def lazily_load_dataset(corpus_type):
     def lazy_dataset_loader(pt_file, corpus_type):
         if use_gpu(opt):
             device_id = opt.gpu if hasattr(opt, 'gpu') else opt.gpuid[0]
-            device = 'cuda:' + device_id
+            device = 'cuda:' + str(device_id)
         else:
             device = 'cpu'
         dataset = torch.load(pt_file, map_location=device)
