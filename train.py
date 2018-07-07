@@ -324,7 +324,11 @@ def lazily_load_dataset(corpus_type):
     assert corpus_type in ["train", "valid"]
 
     def lazy_dataset_loader(pt_file, corpus_type):
-        dataset = torch.load(pt_file)
+        if use_gpu(opt):
+            device = 'cuda:' + opt.gpu
+        else:
+            device = 'cpu'
+        dataset = torch.load(pt_file, map_location=device)
         logger.info('Loading %s dataset from %s, number of examples: %d' %
                     (corpus_type, pt_file, len(dataset)))
         return dataset
