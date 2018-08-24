@@ -157,6 +157,7 @@ class FirstViewThenListenMMM(MultiModalModel):
         converted = converted.unsqueeze(0)  # [1 x batch x hidden_size]
         first_dim = self.encoder.rnn.num_layers * (2 if self.encoder.rnn.bidirectional else 1)
         encoder_init = converted.expand(first_dim, -1, -1)  # [first_dim x batch x hidden_size]
+        encoder_init = encoder_init.contiguous()
 
         if isinstance(self.encoder.rnn, nn.LSTM):
             encoder_init = (encoder_init, encoder_init)  # Use it as initial hidden and cell state
